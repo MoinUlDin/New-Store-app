@@ -9,6 +9,7 @@ from PyQt6.QtGui import QIcon, QPixmap
 from utils.i18n import t
 from app.screens.order_screen import OrderScreen
 from app.screens.settings import SettingScreen
+from app.screens.add_update_item import AddUpdateItem
 import os
 
 def icon_path(name: str) -> str:
@@ -34,20 +35,20 @@ class MainWindow(QMainWindow):
         # 2. Initialize Screens
         self.order_screen = OrderScreen()
         self.settings_screen = SettingScreen()
+        self.add_update_screen = AddUpdateItem()
         self.dashboard_screen = PlaceholderScreen("Dashboard")
         self.stock_list_screen = PlaceholderScreen("Stock List")
-        self.new_item_screen = PlaceholderScreen("New Item")
         self.add_stock_screen = PlaceholderScreen("Add Stock")
         self.manage_stock_screen = PlaceholderScreen("Manage Stock")
 
         # 3. Add Screens to Stack
-        self.stack.addWidget(self.dashboard_screen)    # Index 0
-        self.stack.addWidget(self.order_screen)        # Index 1
-        self.stack.addWidget(self.stock_list_screen)   # Index 2
-        self.stack.addWidget(self.new_item_screen)     # Index 3
-        self.stack.addWidget(self.add_stock_screen)    # Index 4
-        self.stack.addWidget(self.manage_stock_screen) # Index 5
-        self.stack.addWidget(self.settings_screen)     # Index 6
+        self.stack.addWidget(self.dashboard_screen)      # Index 0
+        self.stack.addWidget(self.order_screen)          # Index 1
+        self.stack.addWidget(self.stock_list_screen)     # Index 2
+        self.stack.addWidget(self.add_update_screen)     # Index 3
+        self.stack.addWidget(self.add_stock_screen)      # Index 4
+        self.stack.addWidget(self.manage_stock_screen)   # Index 5
+        self.stack.addWidget(self.settings_screen)       # Index 6
 
         # Build UI
         self._build_base_ui()
@@ -108,7 +109,7 @@ class MainWindow(QMainWindow):
         add_gap(self.toolbar_space)
         self.btn_stock_list = add_toolbutton("list.svg", "stock_list", self.stock_list_screen)
         add_gap(self.toolbar_space)
-        self.btn_new_item = add_toolbutton("cross_circle.svg", "new_item", self.new_item_screen)
+        self.btn_new_item = add_toolbutton("cross_circle.svg", "new_item", self.add_update_screen)
         add_gap(self.toolbar_space)
         self.btn_add_stock = add_toolbutton("package_check.svg", "add_stock", self.add_stock_screen)
         add_gap(self.toolbar_space)
