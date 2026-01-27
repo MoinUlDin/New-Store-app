@@ -1,0 +1,57 @@
+```
+kiryana-pos/
+├─ README.md
+├─ requirements.txt
+├─ .gitignore
+├─ main.py
+├─ services/
+│  ├─ audit_service.py
+│  ├─ auth_service.py
+│  ├─ category_service.py
+│  ├─ product_service.py
+│  ├─ sale_service.py
+│  ├─ settings_service.py
+│  ├─ stock_service.py
+│  ├─ user_service.py
+├─ packaging/
+│  └─ pyinstaller.spec
+├─ docs/
+├─ migrations/
+├─ data/
+│  ├─ db.py
+│  ├─ kiryana.sqlite
+│  ├─ schema.sql
+├─ resources/
+│  ├─ icons/
+│  │  ├─ arrow_out_up.svg
+│  │  ├─ check_box_sq.svg
+│  │  ├─ cross_circle.svg
+│  │  ├─ email.svg
+│  │  ├─ home.svg
+│  │  ├─ list.svg
+│  │  ├─ menu.svg
+│  │  ├─ more_horizontal.svg
+│  │  ├─ more_vertical.svg
+│  │  ├─ package_check.svg
+│  │  ├─ save.svg
+│  │  ├─ search.svg
+│  │  ├─ settings.svg
+│  │  ├─ shoping_cart.svg
+│  │  ├─ trend.svg
+│  ├─ fonts/
+│  │  ├─ JAMEEL_NOORI.TTF
+│  └─ qrc/
+├─ app/
+│  ├─ __init__.py
+│  ├─ config.py
+│  ├─ screens/
+│  │  ├─ order_screen.py
+│  ├─ modals/
+│  └─ styles/
+│  └─ main_window.py
+│  └─ app.qss
+├─ tests/
+├─ utils/
+│  └─ i18n.py
+
+```
