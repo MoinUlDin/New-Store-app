@@ -2,21 +2,25 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit,
     QComboBox, QPushButton, QCheckBox, QDoubleSpinBox,
-    QMessageBox, QInputDialog, QSizePolicy, QApplication, QFrame
+    QMessageBox, QInputDialog, QSizePolicy, QApplication, QFrame,
+    QSpacerItem
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QDoubleValidator
+from PyQt6.QtGui import QDoubleValidator, QCursor
 from decimal import Decimal
 from datetime import datetime, timezone
 import traceback
-from utils.add_update_screen_tr import t
 
+# Modules
+from utils.add_update_screen_tr import t
+from services import product_service, category_service
 
 class AddUpdateItem(QWidget):
     def __init__(self, parent=None, item=None):
         super().__init__(parent)
         self.parent = parent
         self.item = item
+        self.active_input=''
         self.units_list = ["kg", 'gm', "ltr", "ml", "pcs"]
         self.init_ui()
         
@@ -32,10 +36,15 @@ class AddUpdateItem(QWidget):
             
 
     def init_ui(self):
-        self.setMinimumSize(400, 300)
+        self.setMinimumSize(400, 500)
         self._create_components()       
         self._design_layout()
         self._apply_styles()
+        
+        
+        # controls
+        self._connect_buttons()
+        self._reload_categories()
     
     def _create_components(self):
         self._init_validator()
@@ -48,6 +57,7 @@ class AddUpdateItem(QWidget):
         self.right_form = QFormLayout()
         self.left_form = QFormLayout()
         self.button_layout = QHBoxLayout()
+        self.category_layout = QHBoxLayout()
         
         # lables
         self.lbl_title = QLabel()
@@ -62,7 +72,8 @@ class AddUpdateItem(QWidget):
         self.lbl_sell_price = QLabel()
         self.lbl_initial_stock = QLabel()
         self.lbl_packing_size = QLabel()
-        self.lbl_supply_pack_qty = QLabel()
+        self.lbl_custom_pack = QLabel()
+        self.lbl_supply_pack_size = QLabel()
         self.lbl_reorder = QLabel()
         
         # QlineEdit Inputs or ComboBox
@@ -78,15 +89,17 @@ class AddUpdateItem(QWidget):
         self.txt_sell_price = QLineEdit()
         self.txt_initial_stock = QLineEdit()
         self.txt_packing_size = QLineEdit()
-        self.txt_supply_pack_qty = QLineEdit()
+        self.chk_custom_packing = QCheckBox()
+        self.txt_supply_pack_size = QLineEdit()
         self.txt_reorder = QLineEdit()
         
+        #buttons
         self.btn_save = QPushButton()
         self.btn_cancel = QPushButton()
+        self.btn_category = QPushButton('+')
+        self.btn_clear = QPushButton()
         self._apply_validator()
-        
-        
-        
+          
     # --------------- Design Layout ----------------
     def _design_layout(self):
         self.main_layout.addWidget(self.lbl_title, Qt.AlignmentFlag.AlignHCenter)
@@ -97,8 +110,20 @@ class AddUpdateItem(QWidget):
         self.right_form.addRow(self.lbl_short_code, self.txt_short_code)
         self.right_form.addRow(self.lbl_item_name_ur, self.txt_item_name_ur)
         self.right_form.addRow(self.lbl_item_name_en, self.txt_item_name_en)
-        self.right_form.addRow(self.lbl_category, self.cmb_category)
+        
+        #category 
+        self.category_layout.addWidget(self.cmb_category)
+        self.category_layout.addWidget(self.btn_category)
+        self.cmb_category.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        
+        self.right_form.addRow(self.lbl_category, self.category_layout)
         self.right_form.addRow(self.lbl_company, self.txt_company)
+        check_layout = QHBoxLayout()
+        check_layout.addWidget(self.txt_reorder)
+        check_layout.addSpacerItem(QSpacerItem(10, 10))
+        check_layout.addWidget(self.lbl_custom_pack)
+        check_layout.addWidget(self.chk_custom_packing)
+        self.right_form.addRow(self.lbl_reorder, check_layout)
         
         # Left Form
         self.left_side.setLayout(self.left_form)
@@ -106,24 +131,50 @@ class AddUpdateItem(QWidget):
         self.left_form.addRow(self.lbl_base_price, self.txt_base_price)
         self.left_form.addRow(self.lbl_sell_price, self.txt_sell_price)
         self.left_form.addRow(self.lbl_initial_stock, self.txt_initial_stock)
+        
         self.left_form.addRow(self.lbl_packing_size, self.txt_packing_size)
-        self.left_form.addRow(self.lbl_supply_pack_qty, self.txt_supply_pack_qty)
+        self.left_form.addRow(self.lbl_supply_pack_size, self.txt_supply_pack_size)
 
+        #buttons and spacing
+        self.button_layout.addSpacerItem(QSpacerItem(40, 40, hPolicy=QSizePolicy.Policy.Fixed, vPolicy=QSizePolicy.Policy.Expanding))
         self.button_layout.addWidget(self.btn_save, Qt.AlignmentFlag.AlignRight)
+        self.button_layout.addSpacerItem(QSpacerItem(40, 40))
         self.button_layout.addWidget(self.btn_cancel, Qt.AlignmentFlag.AlignRight)
+        self.button_layout.addSpacerItem(QSpacerItem(40, 40))
+        self.button_layout.addWidget(self.btn_clear)
+
+        self.left_form.addRow(self.button_layout)
         
         self.form_layout.addWidget(self.right_side)
         self.form_layout.addWidget(self.left_side)  
         self.main_layout.addLayout(self.form_layout)
-        self.main_layout.addLayout(self.button_layout)  
+     
         
         self.setLayout(self.main_layout)
         
     def _apply_styles(self):
         self.main_layout.setContentsMargins(30,30,30,30)
+        # forms Spacing and Margins
+        self.right_side.setContentsMargins(10, 10, 10, 10)
+        self.right_form.setHorizontalSpacing(20)
+        self.right_form.setVerticalSpacing(10)
+        self.left_side.setContentsMargins(10, 10, 10, 10)
+        self.left_form.setHorizontalSpacing(20)
+        self.left_form.setVerticalSpacing(10)
+        
         self.lbl_title.setFixedHeight(80)
         self.lbl_title.setObjectName('lblTitle')
         self.right_side.setObjectName('rightSide')
+        self.left_side.setObjectName('leftSide')
+        self.chk_custom_packing.setObjectName("chkCustomPack")
+
+        self.btn_save.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_cancel.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_category.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_cancel.setObjectName("btnCancel")
+        self.btn_save.setObjectName("btnSave")
+        self.btn_category.setObjectName("btnCategory")
+        self.btn_clear.setObjectName('btnClear')
         self.setStyleSheet("""
         
             QLineEdit, QComboBox {
@@ -139,16 +190,41 @@ class AddUpdateItem(QWidget):
                 font-weight: bold;
         
             }
-            QPushButton {
-                padding: 8px 16px;
-                border-radius: 4px;
-                background-color: #007bff;
+            QCheckBox#chkCustomPack{
+                padding: 10px
             }
-            QFrame#rightSide {
-                border: 1px solid black;
+            QPushButton#btnCancel,
+            QPushButton#btnSave
+            {
+                padding: 6px 10px;
                 border-radius: 4px;
+                color: white;
+                background-color: rgb(41, 132, 173);
+                
+            }
+            #btnCategory{
+                color: white;
+                background-color: rgb(9, 122, 9);
+                font-size: 20px;
+                font-weight: 600;
+            }
+            QPushButton#btnCancel:hover,
+            QPushButton#btnSave:hover {
+                background-color: rgb(31, 100, 133);
+            }
+            #btnClear{
+                background-color: rgb(199, 61, 51);
+                padding: 6px 10px;
+                border-radius: 4px;
+                color: white;
+            }
+            QFrame#rightSide, QFrame#leftSide {
+                border: 1px solid rgb(170, 170, 170);;
+                border-radius: 4px;
+                background-color: rgb(250, 250, 250);
             }
         """)
+    
     # --------------- Validator ----------------
     def _init_validator(self):
         self.double_validator = QDoubleValidator(0.0, 1000.0, 2, self)
@@ -159,7 +235,12 @@ class AddUpdateItem(QWidget):
         self.txt_sell_price.setValidator(self.double_validator) 
         self.txt_initial_stock.setValidator(self.double_validator)
         self.txt_packing_size.setValidator(self.double_validator)
-        self.txt_supply_pack_qty.setValidator(self.double_validator)    
+        self.txt_supply_pack_size.setValidator(self.double_validator)    
+    
+    def _connect_buttons(self):
+        self.btn_category.clicked.connect(self._on_add_category)
+        self.btn_save.clicked.connect(self._on_save)
+        self.btn_clear.clicked.connect(lambda: self._clear_form(True))
         
     # --------------- language ----------------
     def _current_lang(self):
@@ -169,6 +250,7 @@ class AddUpdateItem(QWidget):
         
     def apply_language(self, lang: str):
         # set label texts
+        self._set_focus() # Setting Focus to barcode only
         try:
             self.lbl_title.setText(t("title", lang))
             self.lbl_barcode.setText(t("barcode", lang))
@@ -182,7 +264,8 @@ class AddUpdateItem(QWidget):
             self.lbl_sell_price.setText(t("sell_price", lang))
             self.lbl_initial_stock.setText(t("initial_stock", lang))
             self.lbl_packing_size.setText(t("packing_size", lang))
-            self.lbl_supply_pack_qty.setText(t("supply_pack_qty", lang))
+            self.lbl_supply_pack_size.setText(t("supply_pack_size", lang))
+            self.lbl_custom_pack.setText(t("custom_packing", lang))
             self.lbl_reorder.setText(t("reorder_threshold", lang))
         except Exception:
             pass
@@ -200,6 +283,7 @@ class AddUpdateItem(QWidget):
         # title and button labels
         self.btn_save.setText(t("save", lang))
         self.btn_cancel.setText(t("cancel", lang))
+        self.btn_clear.setText(t("clear", lang))
     
         
         # Combo box items
@@ -213,3 +297,179 @@ class AddUpdateItem(QWidget):
         else:
             self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
     
+    
+    # -------------- Controls ------------------------
+    def _reload_categories(self):
+        self.cmb_category.clear()
+        try:
+            if category_service:
+                cats = category_service.list_categories(limit=500, offset=0)
+                for c in cats:
+                    name = c.get("name")
+                    self.cmb_category.addItem(name, c.get("id"))
+            else:
+                # no service — show placeholder only
+                self.cmb_category.addItem("---", None)
+        except Exception as exc:
+            # fail gracefully
+            self.cmb_category.addItem("---", None)
+    
+    def _on_add_category(self):
+        # small dialog to create category
+        name, ok = QInputDialog.getText(self, t("category", self._current_lang()), t("category", self._current_lang()))
+        if not ok:
+            return
+        name = name.strip()
+        if not name:
+            QMessageBox.warning(self, t("category", self._current_lang()), t("category", self._current_lang()) + " is required.")
+            return
+
+        if not category_service or not hasattr(category_service, "create_category"):
+            QMessageBox.critical(self, "Error", "Category service not available.")
+            return
+
+        try:
+            created_id = category_service.create_category(name)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to create category:\n{str(exc)}")
+            return
+
+        # reload and select created
+        self._reload_categories()
+        # select the new id if present
+        idx = next((i for i in range(self.cmb_category.count()) if self.cmb_category.itemData(i) == created_id), None)
+        if idx is not None:
+            self.cmb_category.setCurrentIndex(idx)
+            
+    def _validate_input_data(self):
+        lang = self._current_lang()
+        if not self.txt_item_name_ur.text().strip():
+            self.active_input = 'ur_name'
+            return False, t('name_ur_error', lang), False
+        elif not self.txt_reorder.text().strip():
+            self.active_input = 'reorder'
+            return False, t('reorder_error', lang), False
+        elif not self.txt_base_price.text().strip():
+            self.active_input = 'base_price'
+            return False, t('base_price_error', lang), False
+        elif not self.txt_sell_price.text().strip():
+            self.active_input = 'sell_price'
+            return False, t('sell_price_error', lang), False
+        elif not self.txt_initial_stock.text().strip():
+            self.active_input = 'initial_stock'
+            return False, t('initial_stock_error', lang), False
+        
+        if int(self.txt_base_price.text().strip()) >= int(self.txt_sell_price.text().strip()):
+            ret = QMessageBox.warning(
+            self, 
+            t("price_warning", lang), 
+            t('price_warning_msg', lang),
+            QMessageBox.StandardButton.Ignore | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel # Set Cancel as the default highlighted button
+            )
+            # 4. Check which button was clicked
+            if ret == QMessageBox.StandardButton.Cancel:
+                # Stop execution if they click Cancel
+                self.active_input = 'sell_price'
+                return False, "user_cancelled", True
+
+        return True, "", False   
+
+    def _collect_data(self):
+        cat_id = self.cmb_category.currentData()
+        return {
+            "short_code": self.txt_short_code.text().strip() or None,
+            "ur_name": self.txt_item_name_ur.text().strip() or None,
+            "en_name": self.txt_item_name_en.text().strip() or None,
+            "company": self.txt_company.text().strip() or None,
+            "barcode": self.txt_barcode.text().strip() or None,
+            "base_price": Decimal(self.txt_base_price.text()),
+            "sell_price": Decimal(self.txt_sell_price.text()),
+            "stock_qty": Decimal(self.txt_initial_stock.text()),
+            "reorder_threshold": Decimal(self.txt_reorder.text()) ,
+            "category_id": int(cat_id) if cat_id else None,
+            "unit": self.cmb_unit.currentText() or None,
+            "custom_packing": 1 if self.chk_custom_packing.isChecked() else 0,
+            "packing_size": Decimal(self.txt_packing_size.text()) if self.txt_packing_size.text() else None,
+            "supply_pack_qty": Decimal(self.txt_supply_pack_size.text()) if self.txt_supply_pack_size.text() else None,
+        }
+
+    def _on_save(self):
+        ok, msg, stop_only = self._validate_input_data()
+        if not ok and  not stop_only:
+            QMessageBox.warning(self, "Validation", msg)
+            self._set_focus()
+            return
+        if stop_only:
+            self._set_focus()
+            return
+
+        data = self._collect_data()
+        
+        if not product_service or not hasattr(product_service, "create_product"):
+            QMessageBox.critical(self, "Error", "Product service not available. Cannot save.")
+            return
+
+        try:
+            if self.item:
+                # update mode
+                success = product_service.update_product(self.item.id, data)
+                if success:
+                    QMessageBox.information(self, "Success", f"Product (id={self._editing_id}) updated.")
+                    self._clear_form()
+                    # switch out of edit mode
+                    self._editing_id = None
+
+                else:
+                    QMessageBox.warning(self, "Warning", "Update reported failure.")
+            else:
+                # create mode
+                new_id = product_service.create_product(data)
+                QMessageBox.information(self, "Success", f"Product created (id={new_id}).")
+                self._clear_form()
+        except Exception as exc:
+            trace = traceback.format_exc(limit=1)
+            QMessageBox.critical(self, "Error", f"Failed to save product:\n{str(exc)}\n{trace}")
+    
+    def _clear_form(self, warning: bool = False):
+        lang = self._current_lang()
+        ret = QMessageBox.warning(
+        self, 
+        t("warning", lang), 
+        t('clear_warning_msg', lang),
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No
+        )
+        # 4. Check which button was clicked
+        if ret == QMessageBox.StandardButton.No:
+            return
+            
+        self.txt_barcode.clear()
+        self.txt_short_code.clear()
+        self.txt_item_name_ur.clear()
+        self.txt_item_name_en.clear()
+        self.txt_company.clear()
+        self.txt_base_price.clear()
+        self.txt_sell_price.clear()
+        self.txt_initial_stock.clear()
+        self.txt_packing_size.clear()
+        self.txt_supply_pack_size.clear()
+        self.txt_reorder.clear()
+        self.chk_custom_packing.setChecked(False)
+
+        self.txt_barcode.setFocus()
+    
+    def _set_focus(self):
+        tt = self.active_input
+        if tt == '':
+            self.txt_barcode.setFocus()
+        elif tt == 'ur_name':
+            self.txt_item_name_ur.setFocus()
+        elif tt == 'reorder':
+            self.txt_reorder.setFocus()
+        elif tt == 'base_price':
+            self.txt_base_price.setFocus()
+        elif tt == 'sell_price':
+            self.txt_sell_price.setFocus()
+        elif tt == 'initial_stock':
+            self.txt_initial_stock.setFocus()

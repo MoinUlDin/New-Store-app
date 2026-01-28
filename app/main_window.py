@@ -9,7 +9,7 @@ from PyQt6.QtGui import QIcon, QPixmap
 from utils.i18n import t
 from app.screens.order_screen import OrderScreen
 from app.screens.settings import SettingScreen
-from app.screens.add_update_item_old import AddUpdateItem
+from app.screens.add_update_item import AddUpdateItem
 import os
 
 def icon_path(name: str) -> str:

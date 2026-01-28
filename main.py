@@ -29,10 +29,10 @@ class LanguageManager(QObject):
         self._current = default
 
         # preload fonts map (font_name -> file path)
-        fonts_dir = os.path.join(PROJECT_ROOT, "resources", "fonts")
+        self.fonts_dir = os.path.join(PROJECT_ROOT, "resources", "fonts")
         self.font_files = {
-            "ur": os.path.join(fonts_dir, "JAMEEL_NOORI.TTF"),
-            "en": os.path.join(fonts_dir, "Inter.ttf"),  # optional - if present
+            "ur": os.path.join(self.fonts_dir, "JAMEEL_NOORI.TTF"),
+            "en": os.path.join(self.fonts_dir, "Inter.ttf"),  # optional - if present
         }
         # loaded families cache
         self._families = {}
@@ -79,11 +79,10 @@ class LanguageManager(QObject):
                 font.setPointSize(12)
             self.app.setFont(font)
         else:
-            # fallback: leave QApplication font as-is or set a generic fallback
-            if lang == "ur":
-                # If Jameel Nori missing, try system fallback but ensure RTL direction applied
-                # (we already set LayoutDirection above)
-                pass
+            self.font_files = {
+            "ur": os.path.join(self.fonts_dir, "JAMEEL_NOORI.TTF"),
+            "en": os.path.join(self.fonts_dir, "Inter.ttf"),  # optional - if present
+        }
 
         # Emit signal so UIs can refresh text / placeholders etc.
         self.language_changed.emit(lang)

@@ -16,7 +16,7 @@ class SettingScreen(QWidget):
         self.cards_layout.addWidget(self.general_card)
 
     def _create_components(self):
-        self.main_layout = QVBoxLayout(self)
+        self.main_layout = QHBoxLayout(self)
         
         # Header
         self.lbl_title = QLabel()
