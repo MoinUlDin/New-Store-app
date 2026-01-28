@@ -16,6 +16,22 @@ _TRANSLATIONS = {
         "supply_pack_qty": "Supply Pack Qty",
         "unit": "Unit",
         "reorder_threshold": "Low Stock Alert",   
+        'cancel': "Cancel",
+        #Unit Options
+        "kg": 'Kg', 
+        'gm': 'Gm', 
+        'ltr': 'Ltr',
+        'ml': 'Ml',
+        'pcs': 'Pcs',
+        
+        #placeholders
+        "barcode_ph": "Scan or Enter Barcode",
+        "short_code_ph": "Enter Short Code",
+        
+        #buttons
+        "save": "Save",
+        "update": "Update",
+        "add": "Add"
     },
     "ur": {
         "title": "نیا آئٹم شامل کریں",
@@ -32,6 +48,22 @@ _TRANSLATIONS = {
         "supply_pack_qty": "تعداد سپلائی",
         "unit": "یونٹ",
         "reorder_threshold": "کم تعداد", 
+        'cancel': "منسوخ کریں",
+        #Unit Options
+        "kg": 'کلوگرام', 
+        'gm': 'گرام', 
+        'ltr': 'لیٹر',
+        'ml': 'ملی لیٹر',
+        'pcs': 'پیکٹ',
+        
+        #placeholders
+        "barcode_ph": "بارکوڈ سکن کریں / یا داخل کریں",
+        "short_code_ph": "شارٹ کوڈ داخل کریں",
+        
+        #buttons
+        "save": "محفوظ کریں",
+        "update": "تبدیل کریں",
+        "add": "نیا"
     }
 }
 
