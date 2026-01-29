@@ -140,7 +140,7 @@ class AddUpdateItem(QWidget):
         self.button_layout.addWidget(self.btn_save, Qt.AlignmentFlag.AlignRight)
         self.button_layout.addSpacerItem(QSpacerItem(40, 40))
         self.button_layout.addWidget(self.btn_cancel, Qt.AlignmentFlag.AlignRight)
-        self.button_layout.addSpacerItem(QSpacerItem(40, 40))
+        self.button_layout.addSpacerItem(QSpacerItem(10, 10))
         self.button_layout.addWidget(self.btn_clear)
 
         self.left_form.addRow(self.button_layout)

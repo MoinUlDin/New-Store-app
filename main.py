@@ -32,7 +32,7 @@ class LanguageManager(QObject):
         self.fonts_dir = os.path.join(PROJECT_ROOT, "resources", "fonts")
         self.font_files = {
             "ur": os.path.join(self.fonts_dir, "JAMEEL_NOORI.TTF"),
-            "en": os.path.join(self.fonts_dir, "Inter.ttf"),  # optional - if present
+            "en": os.path.join(self.fonts_dir, "Inter.ttf"), 
         }
         # loaded families cache
         self._families = {}
@@ -70,6 +70,7 @@ class LanguageManager(QObject):
         # Apply font if we have loaded one
         family = self._families.get(lang)
         if family:
+            print(f"\n we have Family: {family}\n")
             # choose a reasonable default point size; widgets can override
             font = QFont(family)
             # for Urdu fonts we might want a larger default due to glyph size
@@ -81,8 +82,8 @@ class LanguageManager(QObject):
         else:
             self.font_files = {
             "ur": os.path.join(self.fonts_dir, "JAMEEL_NOORI.TTF"),
-            "en": os.path.join(self.fonts_dir, "Inter.ttf"),  # optional - if present
-        }
+            "en": os.path.join(self.fonts_dir, "Inter.ttf"), 
+         }
 
         # Emit signal so UIs can refresh text / placeholders etc.
         self.language_changed.emit(lang)

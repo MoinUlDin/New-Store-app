@@ -4,4 +4,10 @@
   color: rgb(9, 122, 9);
   background-color: rgb(199, 61, 51);
   color: rgb(243, 243, 243);
+  outline: 2px solid rgb(161, 161, 161);
+  outline-offset: 3px;
+  transform: translateX(20px);
+  font-size: 80px;
+
+  color: rgb(0, 0, 114);
 }
