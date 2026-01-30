@@ -10,7 +10,21 @@ from utils.i18n import t
 from app.screens.order_screen import OrderScreen
 from app.screens.settings import SettingScreen
 from app.screens.add_update_item import AddUpdateItem
+from app.screens.login_screen import LoginScreen
+from app.screens.product_list_screen import ProductListScreen
+from services.settings_service import get_all_settings
 import os
+
+# key:language, value:ur
+# key:pass_on_startup, value: 0
+# key:shop_name, value: 0
+# key:shop_phone, value: 0
+# key:shop_address, value: 0
+# key: pass_on_product_update: value: 0
+# key: pass_on_base_price_changed: value: 0
+# key: pass_on_sell_price_changed: value: 0
+# key: pass_on_stock_adjustment: value: 0
+# key: pass_on_new_stock: value: 0
 
 def icon_path(name: str) -> str:
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -26,8 +40,12 @@ class PlaceholderScreen(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.settings = get_all_settings()
         self.setGeometry(40, 50, 1000, 700) 
         self.toolbar_space = 25
+        self.windo_title = self.settings.get("shop_name", "Stock Manager")
+        # keep track of currently logged-in user
+        self.current_user = None  # will be set to {"username":..., "email":...} after login
 
         # 1. Initialize the Stacked Widget
         self.stack = QStackedWidget()
@@ -37,11 +55,14 @@ class MainWindow(QMainWindow):
         self.settings_screen = SettingScreen()
         self.add_update_screen = AddUpdateItem()
         self.dashboard_screen = PlaceholderScreen("Dashboard")
-        self.stock_list_screen = PlaceholderScreen("Stock List")
+        self.stock_list_screen = ProductListScreen()
         self.add_stock_screen = PlaceholderScreen("Add Stock")
         self.manage_stock_screen = PlaceholderScreen("Manage Stock")
 
-        # 3. Add Screens to Stack
+        # Login screen (added)
+        self.login_screen = LoginScreen()
+
+        # 3. Add Screens to Stack (keep same ordering for existing indexes)
         self.stack.addWidget(self.dashboard_screen)      # Index 0
         self.stack.addWidget(self.order_screen)          # Index 1
         self.stack.addWidget(self.stock_list_screen)     # Index 2
@@ -49,6 +70,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.add_stock_screen)      # Index 4
         self.stack.addWidget(self.manage_stock_screen)   # Index 5
         self.stack.addWidget(self.settings_screen)       # Index 6
+        self.stack.addWidget(self.login_screen)          # Index 7 (login)
 
         # Build UI
         self._build_base_ui()
@@ -63,6 +85,25 @@ class MainWindow(QMainWindow):
         else:
             self.apply_language("ur")
 
+
+        self.connect_signals()
+        # Decide whether to show login screen on startup
+        try:
+            val = str(self.settings.get("pass_on_startup", "0")).strip()
+            if val in ("1", "True", "true"):
+                # show login, hide toolbar
+                self.toolbar.hide()
+                self.stack.setCurrentWidget(self.login_screen)
+            else:
+                # normal flow: show dashboard and toolbar
+                self.toolbar.show()
+                self.stack.setCurrentWidget(self.dashboard_screen)
+        except Exception:
+            # fallback - show dashboard
+            self.toolbar.show()
+            self.stack.setCurrentWidget(self.dashboard_screen)
+
+
     def _build_base_ui(self):
         self.build_toolbar()
         self.setCentralWidget(self.stack)
@@ -72,6 +113,8 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         toolbar.setMinimumHeight(85)
         self.addToolBar(toolbar)
+        # store as instance attribute so we can show/hide later
+        self.toolbar = toolbar
 
         def add_toolbutton(svg_name: str, text_key: str, screen=None) -> QToolButton:
             btn = QToolButton()
@@ -87,7 +130,7 @@ class MainWindow(QMainWindow):
             
             # Navigation logic: Switch stack index when clicked
             if screen:
-                btn.clicked.connect(lambda: self.stack.setCurrentWidget(screen))
+                btn.clicked.connect(lambda _, s=screen: self.stack.setCurrentWidget(s))
             
             toolbar.addWidget(btn)
             return btn
@@ -117,8 +160,25 @@ class MainWindow(QMainWindow):
         add_gap(self.toolbar_space)
         self.btn_settings = add_toolbutton("settings.svg", "settings", self.settings_screen)
 
+    def connect_signals(self):
+        self.login_screen.login_successful.connect(self._on_login_success)
+        self.add_update_screen.item_added_updated.connect(self.stock_list_screen.load_products)
+
+    def _on_login_success(self, username: str, email: str):
+        """
+        Called when LoginScreen emits login_successful.
+        Stores current user, shows toolbar, and navigates to dashboard.
+        """
+        self.current_user = {"username": username, "email": email}
+        # show toolbar and navigate
+        self.toolbar.show()
+        # ensure dashboard is visible
+        self.stack.setCurrentWidget(self.dashboard_screen)
+        # optional: update window title with username
+        self.window_title = f'{self.windo_title}-{username}'
+        self.setWindowTitle(self.window_title)
+
     def apply_language(self, lang: str):
-        self.setWindowTitle(t("app_title", lang))
         
         # Update Toolbar Labels
         self.btn_home.setText(t("dashboard", lang))

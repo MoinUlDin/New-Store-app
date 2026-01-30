@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QInputDialog, QSizePolicy, QApplication, QFrame,
     QSpacerItem
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QDoubleValidator, QCursor
 from decimal import Decimal
 from datetime import datetime, timezone
@@ -16,6 +16,8 @@ from utils.add_update_screen_tr import t
 from services import product_service, category_service
 
 class AddUpdateItem(QWidget):
+    item_added_updated = pyqtSignal(str)
+    
     def __init__(self, parent=None, item=None):
         super().__init__(parent)
         self.parent = parent
@@ -47,7 +49,7 @@ class AddUpdateItem(QWidget):
         self._reload_categories()
     
     def _create_components(self):
-        self._init_validator()
+        self._double_validator()
         # Main layout
         self.main_layout = QVBoxLayout()
         
@@ -226,8 +228,8 @@ class AddUpdateItem(QWidget):
         """)
     
     # --------------- Validator ----------------
-    def _init_validator(self):
-        self.double_validator = QDoubleValidator(0.0, 1000.0, 2, self)
+    def _double_validator(self):
+        self.double_validator = QDoubleValidator(1.0, 999999999.0, 2, self)
         self.double_validator.setNotation(QDoubleValidator.Notation.StandardNotation)
 
     def _apply_validator(self):
@@ -236,6 +238,7 @@ class AddUpdateItem(QWidget):
         self.txt_initial_stock.setValidator(self.double_validator)
         self.txt_packing_size.setValidator(self.double_validator)
         self.txt_supply_pack_size.setValidator(self.double_validator)    
+        self.txt_reorder.setValidator(self.double_validator)    
     
     def _connect_buttons(self):
         self.btn_category.clicked.connect(self._on_add_category)
@@ -359,7 +362,7 @@ class AddUpdateItem(QWidget):
             self.active_input = 'initial_stock'
             return False, t('initial_stock_error', lang), False
         
-        if int(self.txt_base_price.text().strip()) >= int(self.txt_sell_price.text().strip()):
+        if Decimal(self.txt_base_price.text().strip()) >= Decimal(self.txt_sell_price.text().strip()):
             ret = QMessageBox.warning(
             self, 
             t("price_warning", lang), 
@@ -430,19 +433,22 @@ class AddUpdateItem(QWidget):
         except Exception as exc:
             trace = traceback.format_exc(limit=1)
             QMessageBox.critical(self, "Error", f"Failed to save product:\n{str(exc)}\n{trace}")
+        
+        self.item_added_updated.emit('addUpdate')
     
     def _clear_form(self, warning: bool = False):
-        lang = self._current_lang()
-        ret = QMessageBox.warning(
-        self, 
-        t("warning", lang), 
-        t('clear_warning_msg', lang),
-        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        QMessageBox.StandardButton.No
-        )
-        # 4. Check which button was clicked
-        if ret == QMessageBox.StandardButton.No:
-            return
+        if warning:
+            lang = self._current_lang()
+            ret = QMessageBox.warning(
+            self, 
+            t("warning", lang), 
+            t('clear_warning_msg', lang),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+            )
+            # 4. Check which button was clicked
+            if ret == QMessageBox.StandardButton.No:
+                return
             
         self.txt_barcode.clear()
         self.txt_short_code.clear()

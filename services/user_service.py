@@ -26,6 +26,20 @@ def authenticate(username: str, password: str) -> Optional[Dict[str, Any]]:
 def change_password(username: str, old_password: str, new_password: str) -> bool:
     return auth_service.change_password(username, old_password, new_password)
 
+def get_current_user() -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    cur = conn.execute("SELECT id, username, email, role, is_superadmin, is_active, created_at, last_login_at FROM users WHERE current_user = 1")
+    row = cur.fetchone()
+    if not row:
+        return None
+    return dict(row)
+
+def mark_current_user_by_id(id: int) -> None:
+    conn = get_connection()
+    with db_transaction(conn):
+        conn.execute("UPDATE users SET current_user = 0 WHERE current_user = 1")
+        conn.execute("UPDATE users SET current_user = 1 WHERE id = ?", (id,))
+
 
 def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
