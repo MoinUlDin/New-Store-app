@@ -314,6 +314,10 @@ class SettingScreen(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to save settings:\n{exc}")
 
     def save_password_rules(self):
+        ok = self._confirm_password()
+        if not ok:
+            return
+        
         try:
             # batch update using new helper to reduce DB hits
             settings_service.set_password_rules({

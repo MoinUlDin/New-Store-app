@@ -32,6 +32,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "error": "Error",
         "reorder": "Reorder",
         "results_for": "results for",
+        "kg": 'Kg',
+        "gram": 'gm',
+        "ltr": 'ltr',
     },
     "ur": {
         "search_products_placeholder": "نام، بارکوڈ یا شارٹ کوڈ سے تلاش کریں",
@@ -56,6 +59,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "error": "خرابی",
         "reorder": "دوبارہ آرڈر",
         "results_for": "نتائج برائے",
+        "kg": 'کلوگرام',
+        "gm": 'گرام',
+        "ltr": 'لیٹر',
     },
 }
 

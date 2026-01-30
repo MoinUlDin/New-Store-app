@@ -230,7 +230,7 @@ class ProductListScreen(QWidget):
 
         # add packing (packing_size + unit) if present
         packing = product.get("packing_size")
-        unit = product.get("unit") or ""
+        unit = t(product.get("unit") or "", self.lang)
         if packing is not None and str(packing).strip() != "":
             # display integer when possible, otherwise raw
             try:
@@ -241,7 +241,7 @@ class ProductListScreen(QWidget):
                     pack_str = f"{pack_dec.normalize()}"
             except Exception:
                 pack_str = str(packing)
-            return f"{name} ({pack_str} {unit})" if unit else f"{name} ({pack_str})"
+            return f"{name} - ({pack_str} {unit})" if unit else f"{name} - ({pack_str})"
         return name
 
     def _stock_cell_text(self, product: Dict[str, Any]) -> str:
