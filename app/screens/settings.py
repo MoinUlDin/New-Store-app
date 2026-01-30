@@ -10,6 +10,7 @@ from PyQt6.QtCore import Qt
 from utils.settings_screen_tr import t  # translator: t(key, lang)
 from services import settings_service
 from services import user_service
+from app.modals.confirm_password_dialog import ConfirmPasswordDialog
 
 
 class SettingScreen(QWidget):
@@ -293,6 +294,11 @@ class SettingScreen(QWidget):
         self.chk_pass_on_new_stock.setChecked(_bool_from(kv.get("pass_on_new_stock", "0")))
 
     def save_general(self):
+        ok = self._confirm_password()
+        
+        if not ok:
+            return
+        
         shop_name = self.txt_shop_name.text().strip()
         phone = self.txt_phone.text().strip()
         address = self.txt_address.text().strip()
@@ -428,3 +434,14 @@ class SettingScreen(QWidget):
                 self.cmb_lang.setItemText(i, "اردو" if lang == "ur" else "Urdu")
             elif code == "en":
                 self.cmb_lang.setItemText(i, "English" if lang == "en" else "English")
+
+    def _confirm_password(self):
+        try:
+            dlg = ConfirmPasswordDialog(self, reason="Please confirm your password to continue", max_attempts=3)
+            ok = dlg.exec_confirm()
+            return bool(ok)
+        except Exception as exc:
+            # If dialog fails for any reason, fail-safe: deny the operation
+            print("Confirm password dialog error:", exc)
+            return False
+    

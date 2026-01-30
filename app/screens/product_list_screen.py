@@ -14,7 +14,7 @@ from services import product_service
 from data.db import get_connection
 from services.settings_service import get_setting
 from utils.product_list_screen_tr import t
-
+from app.modals.confirm_password_dialog import ConfirmPasswordDialog
 
 class ProductListScreen(QWidget):
     """
@@ -338,6 +338,7 @@ class ProductListScreen(QWidget):
         self.edit_requested.emit(pid)
 
     def _on_delete_clicked(self):
+         
         btn = self.sender()
         if not btn:
             return
@@ -354,6 +355,12 @@ class ProductListScreen(QWidget):
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
+        
+        dlg = ConfirmPasswordDialog(self, reason="Confirm delete", max_attempts=3)
+        ok = dlg.exec_confirm()
+        if not ok:
+            return
+        
         try:
             product_service.delete_product(pid)
             QMessageBox.information(self, t("deleted", self.lang) if t("deleted", self.lang) != "deleted" else "Deleted", t("product_deleted", self.lang) if t("product_deleted", self.lang) != "product_deleted" else "Product deleted.")

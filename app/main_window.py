@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout,
     QToolBar, QApplication, QToolButton,
-    QSizePolicy, QStackedWidget
+    QMessageBox, QStackedWidget, QInputDialog
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QPixmap
@@ -38,6 +38,7 @@ class PlaceholderScreen(QWidget):
         layout.addWidget(QWidget()) # Spacer
 
 class MainWindow(QMainWindow):
+    
     def __init__(self):
         super().__init__()
         self.settings = get_all_settings()
@@ -103,6 +104,10 @@ class MainWindow(QMainWindow):
             self.toolbar.show()
             self.stack.setCurrentWidget(self.dashboard_screen)
 
+    def connect_signals(self):
+        self.login_screen.login_successful.connect(self._on_login_success)
+        self.add_update_screen.item_added_updated.connect(self.stock_list_screen.load_products)
+        self.stock_list_screen.edit_requested.connect(self.on_edit_product)
 
     def _build_base_ui(self):
         self.build_toolbar()
@@ -160,10 +165,6 @@ class MainWindow(QMainWindow):
         add_gap(self.toolbar_space)
         self.btn_settings = add_toolbutton("settings.svg", "settings", self.settings_screen)
 
-    def connect_signals(self):
-        self.login_screen.login_successful.connect(self._on_login_success)
-        self.add_update_screen.item_added_updated.connect(self.stock_list_screen.load_products)
-
     def _on_login_success(self, username: str, email: str):
         """
         Called when LoginScreen emits login_successful.
@@ -177,6 +178,17 @@ class MainWindow(QMainWindow):
         # optional: update window title with username
         self.window_title = f'{self.windo_title}-{username}'
         self.setWindowTitle(self.window_title)
+
+    def on_edit_product(self, id:int = -1):
+        if id == -1:
+            return QMessageBox.critical(None, 'Error', "No Porduct Id found")
+        self.add_update_screen.load_product(id)
+        self.stack.setCurrentWidget(self.add_update_screen)
+    
+    def confirm_password(self, sender=None):
+        password = QInputDialog.getText(self, "password", "Please confirm your password")
+        return password
+
 
     def apply_language(self, lang: str):
         
@@ -197,3 +209,5 @@ class MainWindow(QMainWindow):
             current_screen = self.stack.widget(i)
             if current_screen and hasattr(current_screen, "apply_language"):
                 current_screen.apply_language(lang)
+
+    

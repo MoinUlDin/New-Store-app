@@ -3,7 +3,7 @@ import os
 import sys
 from typing import Optional
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
 from PyQt6.QtGui import QFontDatabase, QFont
 
@@ -52,16 +52,15 @@ class LanguageManager(QObject):
 
     def apply_language(self, lang: str):
         """
-        Apply language to QApplication: set font and layout direction.
-        This does not change translations (strings) — widgets should re-apply
-        their labels when they receive the language_changed signal.
+        Apply language to QApplication: set font and layout direction,
+        then force-apply the font recursively to all existing widgets.
         """
         if lang not in ("ur", "en"):
             lang = "ur"
 
         self._current = lang
 
-        # Set layout direction
+        # Set layout direction at app level
         if lang == "en":
             self.app.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         else:
@@ -71,22 +70,67 @@ class LanguageManager(QObject):
         family = self._families.get(lang)
         if family:
             print(f"\n we have Family: {family}\n")
-            # choose a reasonable default point size; widgets can override
             font = QFont(family)
-            # for Urdu fonts we might want a larger default due to glyph size
             if lang == "ur":
                 font.setPointSize(14)
             else:
                 font.setPointSize(12)
+            # set application default font
             self.app.setFont(font)
+            # force-apply to all widgets (top-level + their children)
+            self._force_apply_font_to_all_widgets(font)
         else:
-            self.font_files = {
-            "ur": os.path.join(self.fonts_dir, "JAMEEL_NOORI.TTF"),
-            "en": os.path.join(self.fonts_dir, "Inter.ttf"), 
-         }
+            # fallback: do nothing but still emit language_changed
+            pass
 
         # Emit signal so UIs can refresh text / placeholders etc.
         self.language_changed.emit(lang)
+
+
+    def _force_apply_font_to_all_widgets(self, font: QFont):
+        """
+        Recursively set `font` onto every top-level widget and their children.
+        This forces rendered widgets to use the newly-loaded family.
+        """
+        try:
+            top_widgets = QApplication.topLevelWidgets()
+        except Exception:
+            top_widgets = []
+
+        for w in top_widgets:
+            self._apply_font_recursively(w, font)
+
+        # Also process events so UI updates immediately
+        QApplication.processEvents()
+
+
+    def _apply_font_recursively(self, widget, font: QFont):
+        """
+        Helper: set font on widget and on all its QWidget children.
+        """
+        try:
+            widget.setFont(font)
+        except Exception:
+            # ignore widgets that don't accept setFont
+            pass
+
+        # iterate children and set font
+        try:
+            children = widget.findChildren(QWidget)
+            for c in children:
+                try:
+                    c.setFont(font)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # update/repaint to ensure repaint happens now
+        try:
+            widget.update()
+            widget.repaint()
+        except Exception:
+            pass
 
     def set_language(self, lang: str):
         """

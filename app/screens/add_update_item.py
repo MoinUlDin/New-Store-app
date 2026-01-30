@@ -13,15 +13,18 @@ import traceback
 
 # Modules
 from utils.add_update_screen_tr import t
-from services import product_service, category_service
+from services import product_service, category_service, settings_service
+from app.modals.confirm_password_dialog import ConfirmPasswordDialog
+
 
 class AddUpdateItem(QWidget):
     item_added_updated = pyqtSignal(str)
     
-    def __init__(self, parent=None, item=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
-        self.item = item
+        self.loaded_product = None
+        self.is_udpating = False
         self.active_input=''
         self.units_list = ["kg", 'gm', "ltr", "ml", "pcs"]
         self.init_ui()
@@ -99,7 +102,6 @@ class AddUpdateItem(QWidget):
         self.btn_save = QPushButton()
         self.btn_cancel = QPushButton()
         self.btn_category = QPushButton('+')
-        self.btn_clear = QPushButton()
         self._apply_validator()
           
     # --------------- Design Layout ----------------
@@ -143,7 +145,6 @@ class AddUpdateItem(QWidget):
         self.button_layout.addSpacerItem(QSpacerItem(40, 40))
         self.button_layout.addWidget(self.btn_cancel, Qt.AlignmentFlag.AlignRight)
         self.button_layout.addSpacerItem(QSpacerItem(10, 10))
-        self.button_layout.addWidget(self.btn_clear)
 
         self.left_form.addRow(self.button_layout)
         
@@ -176,7 +177,6 @@ class AddUpdateItem(QWidget):
         self.btn_cancel.setObjectName("btnCancel")
         self.btn_save.setObjectName("btnSave")
         self.btn_category.setObjectName("btnCategory")
-        self.btn_clear.setObjectName('btnClear')
         self.setStyleSheet("""
         
             QLineEdit, QComboBox {
@@ -214,12 +214,7 @@ class AddUpdateItem(QWidget):
             QPushButton#btnSave:hover {
                 background-color: rgb(31, 100, 133);
             }
-            #btnClear{
-                background-color: rgb(199, 61, 51);
-                padding: 6px 10px;
-                border-radius: 4px;
-                color: white;
-            }
+    
             QFrame#rightSide, QFrame#leftSide {
                 border: 1px solid rgb(170, 170, 170);;
                 border-radius: 4px;
@@ -243,7 +238,7 @@ class AddUpdateItem(QWidget):
     def _connect_buttons(self):
         self.btn_category.clicked.connect(self._on_add_category)
         self.btn_save.clicked.connect(self._on_save)
-        self.btn_clear.clicked.connect(lambda: self._clear_form(True))
+        self.btn_cancel.clicked.connect(lambda: self._clear_form(True))
         
     # --------------- language ----------------
     def _current_lang(self):
@@ -286,20 +281,17 @@ class AddUpdateItem(QWidget):
         # title and button labels
         self.btn_save.setText(t("save", lang))
         self.btn_cancel.setText(t("cancel", lang))
-        self.btn_clear.setText(t("clear", lang))
     
         
         # Combo box items
         self.cmb_unit.clear()
         for u in self.units_list:
-            self.cmb_unit.addItem(t(u, lang))
-
+            self.cmb_unit.addItem(t(u, lang), userData=u)
         # layout direction
         if lang == "en":
             self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         else:
             self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-    
     
     # -------------- Controls ------------------------
     def _reload_categories(self):
@@ -380,6 +372,8 @@ class AddUpdateItem(QWidget):
 
     def _collect_data(self):
         cat_id = self.cmb_category.currentData()
+        unit_data = self.cmb_unit.currentData()
+        
         return {
             "short_code": self.txt_short_code.text().strip() or None,
             "ur_name": self.txt_item_name_ur.text().strip() or None,
@@ -391,13 +385,14 @@ class AddUpdateItem(QWidget):
             "stock_qty": Decimal(self.txt_initial_stock.text()),
             "reorder_threshold": Decimal(self.txt_reorder.text()) ,
             "category_id": int(cat_id) if cat_id else None,
-            "unit": self.cmb_unit.currentText() or None,
+            "unit": unit_data,
             "custom_packing": 1 if self.chk_custom_packing.isChecked() else 0,
             "packing_size": Decimal(self.txt_packing_size.text()) if self.txt_packing_size.text() else None,
             "supply_pack_qty": Decimal(self.txt_supply_pack_size.text()) if self.txt_supply_pack_size.text() else None,
         }
 
     def _on_save(self):
+        
         ok, msg, stop_only = self._validate_input_data()
         if not ok and  not stop_only:
             QMessageBox.warning(self, "Validation", msg)
@@ -412,11 +407,13 @@ class AddUpdateItem(QWidget):
         if not product_service or not hasattr(product_service, "create_product"):
             QMessageBox.critical(self, "Error", "Product service not available. Cannot save.")
             return
-
+        confirm_pass = self._confirm_password(data)
+        if not confirm_pass:
+            return
         try:
-            if self.item:
+            if self.is_udpating:
                 # update mode
-                success = product_service.update_product(self.item.id, data)
+                success = product_service.update_product(self.loaded_product.get('id', None), data)
                 if success:
                     QMessageBox.information(self, "Success", f"Product (id={self._editing_id}) updated.")
                     self._clear_form()
@@ -463,8 +460,10 @@ class AddUpdateItem(QWidget):
         self.txt_reorder.clear()
         self.chk_custom_packing.setChecked(False)
 
+        self.is_udpating = False
+        self.txt_initial_stock.setDisabled(False)
         self.txt_barcode.setFocus()
-    
+
     def _set_focus(self):
         tt = self.active_input
         if tt == '':
@@ -479,3 +478,178 @@ class AddUpdateItem(QWidget):
             self.txt_sell_price.setFocus()
         elif tt == 'initial_stock':
             self.txt_initial_stock.setFocus()
+
+    def load_product(self, id: int = -1):
+        """
+        Load product from service and populate fields.
+        """
+        self.is_udpating = True  # your existing flag (typo kept to avoid other changes)
+        if id == -1:
+            return
+
+        self.loaded_product = product_service.get_product(id)
+
+        self.txt_initial_stock.setDisabled(True)
+        # keep a handy editing id for save/update logic
+        self._editing_id = id
+        # populate UI
+        try:
+            self._populate_fields()
+        except Exception as exc:
+            print("Error populating fields:", exc)
+            # still allow editing if partial failure
+
+    def _populate_fields(self):
+        """
+        Copy values from self.loaded_product to widgets.
+        Converts None/Decimal to string-safe values, selects category and unit.
+        """
+        p = getattr(self, "loaded_product", None)
+        if not p:
+            return
+
+        # simple helper to convert None/Decimal to string
+        def s(val):
+            if val is None:
+                return ""
+            # handle Decimal and other numeric types
+            if isinstance(val, Decimal):
+                # remove exponent if integer-like, otherwise show normalized
+                try:
+                    if val == val.to_integral():
+                        return str(int(val))
+                    return format(val.normalize(), 'f')
+                except Exception:
+                    return str(val)
+            return str(val)
+
+        # textual fields
+        self.txt_barcode.setText(s(p.get("barcode")))
+        self.txt_short_code.setText(s(p.get("short_code")))
+        # language-specific name fields
+        self.txt_item_name_en.setText(s(p.get("en_name")))
+        self.txt_item_name_ur.setText(s(p.get("ur_name")))
+
+        # company may be literal "None" — treat as empty
+        company_val = p.get("company")
+        if company_val is None or str(company_val).strip().lower() == "none":
+            company_str = ""
+        else:
+            company_str = str(company_val)
+        self.txt_company.setText(company_str)
+
+        # numeric fields (use helper to format decimals)
+        self.txt_base_price.setText(s(p.get("base_price")))
+        self.txt_sell_price.setText(s(p.get("sell_price")))
+        self.txt_initial_stock.setText(s(p.get("stock_qty")))
+        self.txt_reorder.setText(s(p.get("reorder_threshold")))
+        self.txt_packing_size.setText(s(p.get("packing_size")))
+        self.txt_supply_pack_size.setText(s(p.get("supply_pack_qty")))
+
+        # custom packing checkbox
+        self.chk_custom_packing.setChecked(bool(p.get("custom_packing")))
+
+        # select category by itemData (which you populated with category id)
+        cat_id = p.get("category_id")
+        if cat_id is not None and hasattr(self, "cmb_category"):
+            found_idx = -1
+            for i in range(self.cmb_category.count()):
+                try:
+                    if self.cmb_category.itemData(i) == cat_id:
+                        found_idx = i
+                        break
+                except Exception:
+                    # fallback comparing string values
+                    if str(self.cmb_category.itemData(i)) == str(cat_id):
+                        found_idx = i
+                        break
+            if found_idx >= 0:
+                self.cmb_category.setCurrentIndex(found_idx)
+
+        # select unit by matching item text or raw unit value
+        unit_val = p.get("unit") or ""
+        if unit_val:
+            unit_val_norm = str(unit_val).strip().lower()
+            found_u = -1
+            for i in range(self.cmb_unit.count()):
+                itm_text = str(self.cmb_unit.itemText(i)).strip().lower()
+                if itm_text == unit_val_norm or itm_text.startswith(unit_val_norm):
+                    found_u = i
+                    break
+            if found_u >= 0:
+                self.cmb_unit.setCurrentIndex(found_u)
+
+        # set focus to barcode (or maintain previous active input)
+        self._set_focus()
+    
+    def _confirm_password(self, data: any = None) -> bool:
+        """
+        Return True if password confirmation not required or user confirmed correctly,
+        otherwise return False.
+
+        Rules checked (any -> require password):
+        - pass_on_product_update  (always on update)
+        - pass_on_base_price_changed (only if base_price changed)
+        - pass_on_sell_price_changed (only if sell_price changed)
+        """
+        from decimal import Decimal, InvalidOperation
+
+        st = settings_service.get_all_settings() or {}
+        def _is_true(v) -> bool:
+            try:
+                return str(v).strip().lower() in ("1", "true", "yes")
+            except Exception:
+                return False
+
+        # If this is not an update, we don't require confirmation here
+        if not getattr(self, "is_udpating", False):
+            return True
+
+        # Determine whether any rule requires asking for password
+        require_password = False
+
+        # 1) global "ask on any product update"
+        if _is_true(st.get("pass_on_product_update", "0")):
+            require_password = True
+        else:
+            # If global update password not set, check specific change rules
+            # Check base price change
+            if _is_true(st.get("pass_on_base_price_changed", "0")):
+                try:
+                    new_base = data.get("base_price") if data else None
+                    old_base = getattr(self, "loaded_product", {}).get("base_price") if getattr(self, "loaded_product", None) else None
+                    if new_base is not None and old_base is not None:
+                        new_d = Decimal(str(new_base))
+                        old_d = Decimal(str(old_base))
+                        if new_d != old_d:
+                            require_password = True
+                except (InvalidOperation, AttributeError, TypeError):
+                    # If unable to compare, conservatively do not trigger here.
+                    pass
+
+            # Check sell price change (only if not already requiring)
+            if not require_password and _is_true(st.get("pass_on_sell_price_changed", "0")):
+                try:
+                    new_sell = data.get("sell_price") if data else None
+                    old_sell = getattr(self, "loaded_product", {}).get("sell_price") if getattr(self, "loaded_product", None) else None
+                    if new_sell is not None and old_sell is not None:
+                        new_d = Decimal(str(new_sell))
+                        old_d = Decimal(str(old_sell))
+                        if new_d != old_d:
+                            require_password = True
+                except (InvalidOperation, AttributeError, TypeError):
+                    pass
+
+        # If no rule requires password, allow action
+        if not require_password:
+            return True
+
+        # Otherwise show the confirm dialog once
+        try:
+            dlg = ConfirmPasswordDialog(self, reason="Please confirm your password to continue", max_attempts=3)
+            ok = dlg.exec_confirm()
+            return bool(ok)
+        except Exception as exc:
+            # If dialog fails for any reason, fail-safe: deny the operation
+            print("Confirm password dialog error:", exc)
+            return False
