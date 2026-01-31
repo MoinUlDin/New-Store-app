@@ -12,6 +12,7 @@ from app.screens.settings import SettingScreen
 from app.screens.add_update_item import AddUpdateItem
 from app.screens.login_screen import LoginScreen
 from app.screens.product_list_screen import ProductListScreen
+from app.screens.add_stock import AddStock
 from services.settings_service import get_all_settings
 import os
 
@@ -57,7 +58,7 @@ class MainWindow(QMainWindow):
         self.add_update_screen = AddUpdateItem()
         self.dashboard_screen = PlaceholderScreen("Dashboard")
         self.stock_list_screen = ProductListScreen()
-        self.add_stock_screen = PlaceholderScreen("Add Stock")
+        self.add_stock_screen = AddStock()
         self.manage_stock_screen = PlaceholderScreen("Manage Stock")
 
         # Login screen (added)
@@ -113,6 +114,7 @@ class MainWindow(QMainWindow):
         self.build_toolbar()
         self.setCentralWidget(self.stack)
 
+    
     def build_toolbar(self):
         toolbar = QToolBar()
         toolbar.setMovable(False)
@@ -121,22 +123,51 @@ class MainWindow(QMainWindow):
         # store as instance attribute so we can show/hide later
         self.toolbar = toolbar
 
+        # small CSS for active / inactive buttons
+        self._toolbar_active_style = """
+            QToolButton {
+                
+                background-color: rgb(233, 168, 107);
+                border-radius: 8px;
+                padding: 6px 8px;
+            }
+            
+        """
+        self._toolbar_inactive_style = """
+            QToolButton {
+                background: transparent;
+            }
+            QToolButton:hover {
+                background-color: #e6f0ff;
+                border-radius: 8px;
+            }
+        """
+
+        # map widget -> button (used to highlight active)
+        self._toolbar_button_map = {}
+
         def add_toolbutton(svg_name: str, text_key: str, screen=None) -> QToolButton:
             btn = QToolButton()
             btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-            
+
             p = QPixmap(icon_path(svg_name))
             if not p.isNull():
                 btn.setIcon(QIcon(p))
                 btn.setIconSize(QSize(28, 28))
-            
-            btn.setText(t(text_key)) 
+
+            btn.setText(t(text_key))
+            # keep autoRaise (looks cleaner) but style sheet will still show background
             btn.setAutoRaise(True)
-            
+
+            # default (inactive) style
+            btn.setStyleSheet(self._toolbar_inactive_style)
+
             # Navigation logic: Switch stack index when clicked
             if screen:
                 btn.clicked.connect(lambda _, s=screen: self.stack.setCurrentWidget(s))
-            
+                # remember mapping so we can highlight the button when screen becomes active
+                self._toolbar_button_map[screen] = btn
+
             toolbar.addWidget(btn)
             return btn
 
@@ -148,11 +179,11 @@ class MainWindow(QMainWindow):
         # Toolbar Buttons with navigation targets
         add_gap(int(self.toolbar_space*1.2))
         self.btn_home = add_toolbutton("trend.svg", "dashboard", self.dashboard_screen)
-        
+
         add_gap(int(self.toolbar_space/2))
         toolbar.addSeparator()
         add_gap(int(self.toolbar_space/2))
-        
+
         self.btn_pos = add_toolbutton("shoping_cart.svg", "new_order", self.order_screen)
         add_gap(self.toolbar_space)
         self.btn_stock_list = add_toolbutton("list.svg", "stock_list", self.stock_list_screen)
@@ -165,6 +196,38 @@ class MainWindow(QMainWindow):
         add_gap(self.toolbar_space)
         self.btn_settings = add_toolbutton("settings.svg", "settings", self.settings_screen)
 
+        # react to stack changes and update active button
+        try:
+            self.stack.currentChanged.connect(self._on_stack_current_changed)
+        except Exception:
+            # ignore if stack signal wiring fails for some reason
+            pass
+
+        # set initial active button based on current widget
+        self._on_stack_current_changed(self.stack.currentIndex())
+
+    def _on_stack_current_changed(self, index: int):
+        """
+        Update toolbar button backgrounds depending on which widget is currently visible.
+        Called by stack.currentChanged(index).
+        """
+        try:
+            current_widget = self.stack.widget(index) if index is not None and index >= 0 else self.stack.currentWidget()
+        except Exception:
+            current_widget = self.stack.currentWidget()
+
+        # Reset all to inactive, and set the one matching current_widget to active (if mapped)
+        for widget, btn in list(self._toolbar_button_map.items()):
+            try:
+                if widget is current_widget:
+                    btn.setStyleSheet(self._toolbar_active_style)
+                else:
+                    btn.setStyleSheet(self._toolbar_inactive_style)
+            except Exception:
+                # if a widget was deleted or something else went wrong, ignore it
+                pass
+
+    
     def _on_login_success(self, username: str, email: str):
         """
         Called when LoginScreen emits login_successful.

@@ -16,6 +16,7 @@ from services.settings_service import get_setting
 from utils.product_list_screen_tr import t
 from app.modals.confirm_password_dialog import ConfirmPasswordDialog
 
+
 class ProductListScreen(QWidget):
     """
     Product list with search and filters.
@@ -49,6 +50,12 @@ class ProductListScreen(QWidget):
             except Exception:
                 self.lang = "ur"
 
+        # internal state
+        self._raw_products: List[Dict[str, Any]] = []
+        # when a search is active this holds the search-filtered base list (before company/category filters)
+        self._raw_products_filtered_by_search: Optional[List[Dict[str, Any]]] = None
+        self._categories_map: Dict[int, str] = {}
+
         self._build_ui()
         self.load_filters()
         self.load_products()
@@ -59,7 +66,9 @@ class ProductListScreen(QWidget):
         self.search_input.returnPressed.connect(self.on_search)
         self.btn_search.clicked.connect(self.on_search)
         self.cmb_company.currentIndexChanged.connect(self.on_filter_changed)
+        self.cmb_category.currentIndexChanged.connect(self.on_filter_changed)
         self.btn_refresh.clicked.connect(self.load_products)
+        self.btn_show_all.clicked.connect(self._on_show_all)
         self.table.cellDoubleClicked.connect(self._on_row_double_click)
         
     def _build_ui(self):
@@ -67,7 +76,7 @@ class ProductListScreen(QWidget):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(8)
 
-        # Top controls: search + company filter + category filter + refresh
+        # Top controls: search + company filter + category filter + refresh + show all
         ctrl_row = QHBoxLayout()
         ctrl_row.setSpacing(8)
 
@@ -78,26 +87,27 @@ class ProductListScreen(QWidget):
         self.btn_search = QPushButton(t("search", self.lang) if t("search", self.lang) != "search" else "Search")
         self.btn_search.setFixedHeight(34)
         
-
         self.cmb_company = QComboBox()
         self.cmb_company.setFixedHeight(34)
-        self.cmb_company.addItem(t("all_companies", self.lang) if t("all_companies", self.lang) != "all_companies" else "All companies", userData="__all__")
         
-
         self.cmb_category = QComboBox()
         self.cmb_category.setFixedHeight(34)
-        self.cmb_category.addItem(t("all_categories", self.lang) if t("all_categories", self.lang) != "all_categories" else "All categories", userData="__all__")
         self.cmb_category.currentIndexChanged.connect(self.on_filter_changed)
 
         self.btn_refresh = QPushButton(t("refresh", self.lang) if t("refresh", self.lang) != "refresh" else "Refresh")
         self.btn_refresh.setFixedHeight(34)
+
+        # Show All button (clears search + filters)
         
+        self.btn_show_all = QPushButton(t("show_all", self.lang))
+        self.btn_show_all.setFixedHeight(34)
 
         ctrl_row.addWidget(self.search_input, 3)
         ctrl_row.addWidget(self.btn_search, 0)
         ctrl_row.addWidget(self.cmb_company, 1)
         ctrl_row.addWidget(self.cmb_category, 1)
         ctrl_row.addWidget(self.btn_refresh, 0)
+        ctrl_row.addWidget(self.btn_show_all, 0)
 
         root.addLayout(ctrl_row)
 
@@ -127,7 +137,6 @@ class ProductListScreen(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         
-
         root.addWidget(self.table, 1)
 
         # small status/footer
@@ -151,53 +160,164 @@ class ProductListScreen(QWidget):
         rows = cur.fetchall()
         return {r["id"]: r["name"] for r in rows}
 
-    def load_filters(self):
-        # populate company and category combos
-        self.cmb_company.blockSignals(True)
-        self.cmb_category.blockSignals(True)
+    def load_filters(self, lang: Optional[str] = None):
+        """
+        Populate company and category combos.
+        Clears and rebuilds the entire combo, including the translated first item.
+        Attempts to preserve previous selection where possible.
+        """
+        if lang is None:
+            lang = getattr(self, "lang", "ur")
+
+        # remember previous selections (by data) so we can restore if possible
         try:
-            companies = self._fetch_companies()
-            # clear except the first "All"
-            while self.cmb_company.count() > 1:
-                self.cmb_company.removeItem(1)
+            prev_company = self.cmb_company.currentData() if self.cmb_company.count() > 0 else None
+        except Exception:
+            prev_company = None
+        try:
+            prev_category = self.cmb_category.currentData() if self.cmb_category.count() > 0 else None
+        except Exception:
+            prev_category = None
+
+        # fetch fresh lists
+        companies = self._fetch_companies()
+        categories = self._fetch_categories()
+        # cache categories map
+        self._categories_map = categories
+
+        # build translated "All ..." labels (fall back to sensible defaults)
+        all_companies_label = t("all_companies", lang) if t("all_companies", lang) != "all_companies" else ("All companies" if lang == "en" else "All companies")
+        all_categories_label = t("all_categories", lang) if t("all_categories", lang) != "all_categories" else ("All categories" if lang == "en" else "All categories")
+
+        # Rebuild company combo
+        self.cmb_company.blockSignals(True)
+        try:
+            self.cmb_company.clear()
+            self.cmb_company.addItem(all_companies_label, userData="__all__")
             for c in companies:
                 self.cmb_company.addItem(c, userData=c)
 
-            categories = self._fetch_categories()
-            while self.cmb_category.count() > 1:
-                self.cmb_category.removeItem(1)
+            # try to restore previous company selection
+            if prev_company is not None:
+                restored = False
+                for i in range(self.cmb_company.count()):
+                    try:
+                        if str(self.cmb_company.itemData(i)) == str(prev_company):
+                            self.cmb_company.setCurrentIndex(i)
+                            restored = True
+                            break
+                    except Exception:
+                        continue
+                if not restored:
+                    self.cmb_company.setCurrentIndex(0)
+            else:
+                self.cmb_company.setCurrentIndex(0)
+        finally:
+            self.cmb_company.blockSignals(False)
+
+        # Rebuild category combo
+        self.cmb_category.blockSignals(True)
+        try:
+            self.cmb_category.clear()
+            self.cmb_category.addItem(all_categories_label, userData="__all__")
             for cid, name in categories.items():
                 self.cmb_category.addItem(name, userData=cid)
 
-            # cache categories map
-            self._categories_map = categories
+            # try to restore previous category selection
+            if prev_category is not None:
+                restored = False
+                for i in range(self.cmb_category.count()):
+                    try:
+                        if str(self.cmb_category.itemData(i)) == str(prev_category):
+                            self.cmb_category.setCurrentIndex(i)
+                            restored = True
+                            break
+                    except Exception:
+                        continue
+                if not restored:
+                    self.cmb_category.setCurrentIndex(0)
+            else:
+                self.cmb_category.setCurrentIndex(0)
         finally:
-            self.cmb_company.blockSignals(False)
             self.cmb_category.blockSignals(False)
+
 
     def load_products(self):
         """
         Load initial product list (no search) and apply client-side filters.
+        Resets any active search state.
         """
         self._raw_products = product_service.list_products()
+        # clear any active search state
+        self._raw_products_filtered_by_search = None
+        # make sure filters are fresh
+        try:
+            self.load_filters()
+        except Exception:
+            pass
         self._apply_filters_and_render()
         self._update_status()
+
+    def _matches_search(self, p: Dict[str, Any], term: str) -> bool:
+        """
+        Case-insensitive substring match for en_name, ur_name, short_code, barcode.
+        """
+        if not term:
+            return True
+        lowered = term.lower()
+        en = (p.get("en_name") or "")
+        ur = (p.get("ur_name") or "")
+        sc = (p.get("short_code") or "")
+        bc = (p.get("barcode") or "")
+
+        try:
+            en_s = str(en).lower()
+        except Exception:
+            en_s = ""
+        try:
+            ur_s = str(ur).lower()
+        except Exception:
+            ur_s = ""
+        try:
+            sc_s = str(sc).lower()
+        except Exception:
+            sc_s = ""
+        try:
+            bc_s = str(bc).lower()
+        except Exception:
+            bc_s = ""
+
+        return (lowered in en_s) or (lowered in ur_s) or (lowered in sc_s) or (lowered in bc_s)
 
     def on_search(self):
         term = self.search_input.text().strip()
         if not term:
-            # empty -> reload normal list
-            self.load_products()
+            # empty -> clear search state and reload normal list (but keep filters)
+            self._raw_products_filtered_by_search = None
+            self._apply_filters_and_render()
+            self._update_status()
             return
-        # search_products already looks up by name, barcode, short_code
-        results = product_service.search_products(term, limit=500)
-        self._raw_products = [p for p in results if p is not None]
-        self._apply_filters_and_render()
+
+        # Client-side case-insensitive substring search across name (ur/en), barcode, short_code
+        base = [p for p in (self._raw_products or []) if p is not None and self._matches_search(p, term)]
+        self._raw_products_filtered_by_search = base
+        # render filtered results but still allow category/company filters
+        self._apply_filters_and_render_from_search(base)
         self._update_status(search_term=term)
 
     def on_filter_changed(self):
         # called when company/category filter changes
-        self._apply_filters_and_render()
+        term = self.search_input.text().strip()
+        if term:
+            # if search text present, start from search-filtered base (compute if needed)
+            if self._raw_products_filtered_by_search is None:
+                # compute filtered_by_search from raw products
+                self._raw_products_filtered_by_search = [p for p in (self._raw_products or []) if p is not None and self._matches_search(p, term)]
+            base = self._raw_products_filtered_by_search
+        else:
+            base = self._raw_products or []
+        self._apply_filters_and_render_from_search(base)
+        self._update_status(search_term=term if term else None)
 
     def _apply_filters_and_render(self):
         # read selected filters
@@ -214,7 +334,31 @@ class ProductListScreen(QWidget):
                     continue
             if selected_category and selected_category != "__all__":
                 cat_id = p.get("category_id")
-                if cat_id != selected_category:
+                # compare string/int robustly
+                if str(cat_id) != str(selected_category):
+                    continue
+            filtered.append(p)
+        self._render_table(filtered)
+
+    def _apply_filters_and_render_from_search(self, base_products: List[Dict[str, Any]]):
+        """
+        Apply company/category filters to the provided base_products (which may be
+        the full raw list or a search-filtered subset) and then render.
+        """
+        selected_company = self.cmb_company.currentData()
+        selected_category = self.cmb_category.currentData()
+
+        filtered = []
+        for p in base_products:
+            if p is None:
+                continue
+            if selected_company and selected_company != "__all__":
+                comp = p.get("company") or ""
+                if comp != selected_company:
+                    continue
+            if selected_category and selected_category != "__all__":
+                cat_id = p.get("category_id")
+                if str(cat_id) != str(selected_category):
                     continue
             filtered.append(p)
         self._render_table(filtered)
@@ -382,19 +526,43 @@ class ProductListScreen(QWidget):
             self.product_selected.emit(pid)
 
     def _update_status(self, search_term: Optional[str] = None):
-        count = len(self._raw_products) if hasattr(self, "_raw_products") else 0
+        # prefer the actual displayed row count
+        count = self.table.rowCount()
         if search_term:
             self.lbl_status.setText(f"{count} results for '{search_term}'")
         else:
             self.lbl_status.setText(f"{count} products loaded")
 
+    def _on_show_all(self):
+        # clear search + filters and reload everything
+        self.search_input.clear()
+        # reset combos to first index
+        try:
+            self.cmb_company.setCurrentIndex(0)
+        except Exception:
+            pass
+        try:
+            self.cmb_category.setCurrentIndex(0)
+        except Exception:
+            pass
+        self.load_products()
+
     # ---------------- Language ----------------
     def apply_language(self, lang: str):
         self.lang = lang
         # update UI labels & placeholders
-        self.search_input.setPlaceholderText(t("search_products_placeholder", lang) if t("search_products_placeholder", lang) != "search_products_placeholder" else "Search by name, barcode or short code")
+        self.search_input.setPlaceholderText(
+            t("search_products_placeholder", lang)
+            if t("search_products_placeholder", lang) != "search_products_placeholder"
+            else "Search by name, barcode or short code"
+        )
         self.btn_search.setText(t("search", lang) if t("search", lang) != "search" else "Search")
         self.btn_refresh.setText(t("refresh", lang) if t("refresh", lang) != "refresh" else "Refresh")
+
+        # update show all label (use translation if available)
+        self.btn_show_all.setText(t("show_all", lang))
+ 
+
         # update table headers
         self.table.setHorizontalHeaderLabels([
             t("name", lang) if t("name", lang) != "name" else "Name",
@@ -406,8 +574,19 @@ class ProductListScreen(QWidget):
             t("stock", lang) if t("stock", lang) != "stock" else "Stock / Reorder",
             t("actions", lang) if t("actions", lang) != "actions" else "Actions",
         ])
-        # reload filters to pick translated "All" if necessary
-        self.load_filters()
-        # re-render table to refresh name language
+
+        # reload filters so the list of companies/categories is up-to-date
+        try:
+            self.load_filters()
+        except Exception:
+            # ignore failures here to keep UI responsive
+            pass
+
+
+        # re-render table to refresh name language (respecting current search/filter state)
         if hasattr(self, "_raw_products"):
-            self._apply_filters_and_render()
+            if self._raw_products_filtered_by_search is not None:
+                # if search active, reapply filters on that base
+                self._apply_filters_and_render_from_search(self._raw_products_filtered_by_search)
+            else:
+                self._apply_filters_and_render()

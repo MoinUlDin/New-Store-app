@@ -35,6 +35,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "kg": 'Kg',
         "gram": 'gm',
         "ltr": 'ltr',
+        "show_all": "Show All",
     },
     "ur": {
         "search_products_placeholder": "نام، بارکوڈ یا شارٹ کوڈ سے تلاش کریں",
@@ -62,6 +63,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "kg": 'کلوگرام',
         "gm": 'گرام',
         "ltr": 'لیٹر',
+        "show_all": "سب دیکھایں",
     },
 }
 
