@@ -31,6 +31,7 @@ TRANSLATIONS = {
         "success": "Success",
         "receive_success_msg": "Stock updated.",
         "select_product_first": "Please select a product first.",
+        "price": "Price",
     },
     "ur": {
         "search_products_placeholder": "نام، بارکوڈ یا شارٹ کوڈ سے تلاش کریں",
@@ -42,7 +43,7 @@ TRANSLATIONS = {
         "company": "کمپنی",
         "stock": "اسٹاک",
         "selected_product": "منتخب شدہ آئٹم:",
-        "unit": "واحد:",
+        "unit": "یونٹ:",
         "supply_pack_qty": "سپلائی فی پیک:",
         "current_stock": "موجودہ اسٹاک:",
         "num_packs": "پیک:",
@@ -58,6 +59,7 @@ TRANSLATIONS = {
         "success": "کامیابی",
         "receive_success_msg": "اسٹاک تازہ ہوا۔",
         "select_product_first": "براہ کرم پہلے کوئی آئٹم منتخب کریں۔",
+        "price": "قیمت",
     },
 }
 
